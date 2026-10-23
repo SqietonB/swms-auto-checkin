@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check
+        run: |
+          for f in checkin.mjs lib/*.mjs test/*.mjs; do
+            node --check "$f" || exit 1
+          done
+
+      - name: CLI --help works without credentials
+        run: node checkin.mjs --help
+
+      - name: CLI fails cleanly without credentials
+        run: |
+          if node checkin.mjs; then
+            echo "expected a non-zero exit without credentials"; exit 1
+          fi
+
+      - name: Tests
+        run: node --test
+
+      - name: No credentials committed
+        run: |
+          if git ls-files | grep -E '^(config\.json|\.session-.*\.json)$'; then
+            echo "::error::config.json / .session-*.json must never be committed"; exit 1
+          fi

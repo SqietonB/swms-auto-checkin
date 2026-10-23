@@ -1,0 +1,8 @@
+# Normalise line endings so CI (Linux) and Windows checkouts agree.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+
+package-lock.json -diff linguist-generated

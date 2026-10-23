@@ -1,0 +1,19 @@
+# dependencies (the project has none, but keep it tidy)
+node_modules/
+
+# credentials and session state — never commit these
+config.json
+config.local.json
+config.*.json
+!config.example.json
+.session-*.json
+
+# logs
+*.log
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

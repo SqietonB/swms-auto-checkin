@@ -1,0 +1,57 @@
+{
+  "name": "swms-auto-checkin",
+  "version": "1.1.0",
+  "description": "学工系统（智慧学工）签到任务自动打卡，支持邮件通知 —— 零依赖 Node.js",
+  "type": "module",
+  "main": "checkin.mjs",
+  "bin": {
+    "swms-auto-checkin": "./checkin.mjs"
+  },
+  "files": [
+    "checkin.mjs",
+    "templates.json",
+    "config.example.json",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node checkin.mjs",
+    "list": "node checkin.mjs --list",
+    "dry-run": "node checkin.mjs --dry-run",
+    "test-mail": "node checkin.mjs --test-mail",
+    "test": "node --test",
+    "syntax": "node --check checkin.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "swms",
+    "student-work-management-system",
+    "学工系统",
+    "智慧学工",
+    "签到",
+    "打卡",
+    "自动签到",
+    "cas",
+    "captcha",
+    "ocr",
+    "zftal",
+    "smtp",
+    "email-notification",
+    "zero-dependency"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SqietonB/swms-auto-checkin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SqietonB/swms-auto-checkin/issues"
+  },
+  "homepage": "https://github.com/SqietonB/swms-auto-checkin#readme",
+  "author": "SqietonB",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
