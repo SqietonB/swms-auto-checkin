@@ -209,11 +209,8 @@ async function connect({ force = false } = {}) {
   return { api: cachedApi };
 }
 
-async function connectOrFail() {
-  const conn = await connect();
-  if (!conn.error) return conn;
-
-  const auth = conn.error;
+/** Turn a failed `login()` result into the outcome shape the runner expects. */
+function authFailure(auth) {
   if (auth.locked) {
     console.error(`[${stamp()}] 账号已锁定：${auth.reason}`);
     console.error('  连续密码错误会触发锁定（约 10 分钟）。脚本已停止，以免延长锁定。');
@@ -223,9 +220,18 @@ async function connectOrFail() {
   return { code: 1, result: { ok: false, reason: auth.reason }, mail: { kind: 'error', error: auth.reason } };
 }
 
+async function connectOrFail() {
+  const conn = await connect();
+  return conn.error ? authFailure(conn.error) : conn;
+}
+
 /** Run `fn(api)`; if the stored session turns out to be stale, log in and retry once. */
 async function withApi(fn) {
   let conn = await connect({ force: args.fresh });
+  // `connect()` reports a failed login as { error }, not { code }. Without this the
+  // runner would call fn(undefined) and crash with "reading 'post'", hiding the
+  // real reason (wrong password, lockout, ticket rejection).
+  if (conn.error) return authFailure(conn.error);
   if (conn.code) return conn;
   try {
     return await fn(conn.api);
