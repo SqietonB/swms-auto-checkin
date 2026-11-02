@@ -227,6 +227,11 @@ node checkin.mjs --test-mail
 | `enabled` | 自动 | 显式写 `false` 可关掉通知 |
 | `to` | — | 字符串或数组，支持多个收件人 |
 | `notifyWhenIdle` | `false` | 设为 `true` 则「无需签到」也发邮件 |
+| `retries` | `3` | 发送失败时的总尝试次数（1–5）。最后一次会换用 465 ⇄ 587 的另一个端口。 |
+| `retryDelayMs` | `6000` | 每次重试前的等待基数（毫秒），按 1×、2× 递增并带随机抖动；设为 `0` 则立即重试。 |
+
+> 多账号同时打卡时，QQ / 163 的 SMTP 常会限流（报「无法连接」或「SMTP 超时」），
+> 但签到本身是成功的。默认会重试 3 次并自动换端口，避免这类偶发失败吞掉通知。
 
 「无需签到」**默认不发信**，否则每 30 分钟跑一次的定时任务会刷屏。
 
@@ -287,6 +292,9 @@ Description=swms auto check-in
 Type=oneshot
 WorkingDirectory=/opt/swms-auto-checkin
 ExecStart=/usr/bin/node checkin.mjs
+# 退出码 2 表示「当前没有需要签到的任务」，属正常结果。
+# 不写这一行，每次没任务时 systemd 都会把服务标成 failed。
+SuccessExitStatus=2
 ```
 
 `/etc/systemd/system/swms-auto-checkin.timer`：
@@ -382,6 +390,8 @@ Type=oneshot
 User=swms
 WorkingDirectory=/opt/swms/users/%i
 ExecStart=/usr/bin/node /opt/swms/app/checkin.mjs
+# 退出码 2（当前无需签到）按成功处理，否则定时器每 30 分钟都会标红一次
+SuccessExitStatus=2
 ```
 
 `/etc/systemd/system/swms-checkin@.timer`：
