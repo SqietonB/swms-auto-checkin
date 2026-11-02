@@ -1,0 +1,10 @@
+[Unit]
+Description=swms network self-check (DNS + CAS reachability)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# 需要 root：恢复网络后要 systemctl start 其它账号的单元
+ExecStart=/opt/swms/netcheck.sh
+# 断网时脚本以 1 退出，这是正常状态，避免 systemd 每 10 分钟标红一次
+SuccessExitStatus=1
