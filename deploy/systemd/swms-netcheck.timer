@@ -1,0 +1,10 @@
+[Unit]
+Description=Run swms network self-check every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Unit=swms-netcheck.service
+
+[Install]
+WantedBy=timers.target

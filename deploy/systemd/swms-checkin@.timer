@@ -1,0 +1,15 @@
+[Unit]
+Description=Run swms check-in for %i every 30 minutes
+
+[Timer]
+# 06:00–22:30 每 30 分钟一次，覆盖晨检（06:30–09:00）、午检（12:00–14:30）、
+# 晚检（14:30–22:00）三个窗口。
+OnCalendar=*-*-* 06..22:00/30:00
+# 关机期间错过的触发在开机后补跑
+Persistent=true
+# 多个用户随机错开最多 5 分钟，避免同一分钟一起冲击 CAS 服务器
+RandomizedDelaySec=300
+Unit=swms-checkin@%i.service
+
+[Install]
+WantedBy=timers.target

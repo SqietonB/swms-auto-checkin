@@ -1,0 +1,17 @@
+[Unit]
+Description=swms auto check-in for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=swms
+Group=swms
+# 签到窗口按北京时间计算，服务器默认 UTC 会让日志时间偏 8 小时
+Environment=TZ=Asia/Shanghai
+# 每个学号一个配置目录，靠 cwd 区分账号（脚本目录里不能放 config.json）
+WorkingDirectory=/opt/swms/users/%i
+ExecStart=/usr/bin/node /opt/swms/app/checkin.mjs
+TimeoutStartSec=600
+# 退出码 2 = 当前无需签到，属正常结果；1（出错）和 3（锁定）仍应标红
+SuccessExitStatus=2
