@@ -169,14 +169,26 @@ test('notify never throws — mail trouble must not break the check-in', async (
   assert.deepEqual(await notify(null, report, (m) => log.push(m)), { sent: false, reason: '未配置邮箱' });
 
   // Port 1 is reserved and refuses connections immediately.
+  // retryDelayMs: 0 keeps the retries but removes the waiting, so the test stays fast.
   const res = await notify(
-    { host: '127.0.0.1', port: 1, secure: false, allowInsecure: true, from: 'a@b.c', to: ['d@e.f'] },
+    { host: '127.0.0.1', port: 1, secure: false, allowInsecure: true, from: 'a@b.c', to: ['d@e.f'], retryDelayMs: 0 },
     report,
     (m) => log.push(m),
   );
   assert.equal(res.sent, false);
   assert.ok(res.reason, 'a reason is reported');
   assert.ok(log.some((m) => /邮件发送失败/.test(m)), 'the failure is logged, not thrown');
+  assert.equal(log.filter((m) => /立即重试/.test(m)).length, 2, 'transient failures are retried before giving up');
+
+  // retries: 1 disables the retry entirely.
+  const once = [];
+  const res2 = await notify(
+    { host: '127.0.0.1', port: 1, secure: false, allowInsecure: true, from: 'a@b.c', to: ['d@e.f'], retries: 1, retryDelayMs: 0 },
+    report,
+    (m) => once.push(m),
+  );
+  assert.equal(res2.sent, false);
+  assert.equal(once.filter((m) => /重试/.test(m)).length, 0, 'retries: 1 means a single attempt');
 });
 
 // ---------------------------------------------------------- SMTP integration
