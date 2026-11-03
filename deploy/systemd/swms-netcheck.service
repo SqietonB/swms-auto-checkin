@@ -4,7 +4,15 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-# 需要 root：恢复网络后要 systemctl start 其它账号的单元
+# 只做探测与记录，不需要 root；/opt/swms/state 需要该用户可写
+User=swms
+Group=swms
+# 必填：改成你自己学校统一认证的域名，例如
+#   Environment=SWMS_CAS_HOST=cas.example.edu.cn
+# 留空时脚本会以退出码 2 报错，systemd 会把服务标成 failed，提醒你补配置
+Environment=SWMS_CAS_HOST=
+# 可选：登录接口路径，默认 /lyuapServer/login
+# Environment=SWMS_CAS_PATH=/lyuapServer/login
 ExecStart=/opt/swms/netcheck.sh
-# 断网时脚本以 1 退出，这是正常状态，避免 systemd 每 10 分钟标红一次
+# 断网时脚本以 1 退出，这是正常状态，避免每 10 分钟标红一次
 SuccessExitStatus=1

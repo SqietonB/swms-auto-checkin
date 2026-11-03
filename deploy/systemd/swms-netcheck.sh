@@ -1,20 +1,27 @@
 #!/bin/bash
-# 网络自检：确认本机能访问学校 CAS。
+# 网络自检：确认本机能连上学校的统一认证服务器（CAS）。
 #
-#   · 正常时不做任何事，只在状态翻转时写一行日志；
-#   · 断网时在本地记下时间点（此时发不出邮件，只能落盘）；
-#   · 从「断」恢复到「通」的瞬间，立即触发所有账号补签，不用等下个 30 分钟周期。
-#
-# 由 swms-netcheck.timer 每 10 分钟调用一次，需要 root（要 systemctl start 其它单元）。
+# 域名**不写死**在脚本里，由 SWMS_CAS_HOST 提供（在 swms-netcheck.service 里设置）。
+# 本脚本以普通用户运行，只做探测与记录：
+#   · 正常时什么都不做，只在状态翻转时写一行日志；
+#   · 断网时记下时间点（此时也发不出邮件，只能落盘）；
+#   · 恢复的瞬间写一个标记文件，由 swms-catchup.path 触发 root 侧补签。
 set -u
 
-APP_DIR=${SWMS_APP_DIR:-/opt/swms/app}
-USERS_DIR=${SWMS_USERS_DIR:-/opt/swms/users}
+CAS_HOST=${SWMS_CAS_HOST:-}
+CAS_PATH=${SWMS_CAS_PATH:-/lyuapServer/login}
 STATE_DIR=${SWMS_STATE_DIR:-/opt/swms/state}
-PROBE="${APP_DIR}/checkin.mjs"
+
+if [ -z "$CAS_HOST" ]; then
+  echo "SWMS_CAS_HOST 未设置，跳过 CAS 可达性探测。" >&2
+  echo "请在 swms-netcheck.service 里设置 Environment=SWMS_CAS_HOST=<统一认证域名>" >&2
+  # 用 2 而不是 1：1 在 SuccessExitStatus 里被当作正常，配置缺失应当让服务标红才看得见
+  exit 2
+fi
 
 STATE_FILE="${STATE_DIR}/net.state"
 LOG="${STATE_DIR}/net.log"
+MARKER="${STATE_DIR}/catchup-wanted"
 mkdir -p "$STATE_DIR"
 
 now=$(date '+%F %T')
@@ -22,15 +29,15 @@ epoch=$(date +%s)
 
 ok=1
 reason=""
-if ! getent hosts cas.kmyz.edu.cn >/dev/null 2>&1; then
+if ! getent hosts "$CAS_HOST" >/dev/null 2>&1; then
   ok=0
-  reason="DNS 解析 cas.kmyz.edu.cn 失败"
+  reason="DNS 解析 ${CAS_HOST} 失败"
 fi
 if [ "$ok" = 1 ]; then
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://cas.kmyz.edu.cn/lyuapServer/login 2>/dev/null)
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://${CAS_HOST}${CAS_PATH}" 2>/dev/null)
   if [ "$code" != "200" ]; then
     ok=0
-    reason="CAS 返回 HTTP $code"
+    reason="CAS 返回 HTTP ${code}"
   fi
 fi
 
@@ -45,16 +52,8 @@ if [ "$ok" = 1 ]; then
 
     if [ "$prev_state" = "down" ]; then
       dur=$(( epoch - prev_epoch ))
-      echo "[$now] 本次断网约 $(( dur / 60 )) 分钟，立即补签所有账号" >> "$LOG"
-      n=0
-      for d in "$USERS_DIR"/*/; do
-        u=$(basename "$d")
-        [ -f "$d/config.json" ] || continue
-        systemctl start --no-block "swms-checkin@${u}.service" >/dev/null 2>&1 && n=$((n + 1))
-        # 稍微错开，避免同时登录把 CAS 打满
-        sleep 3
-      done
-      echo "[$now] 已触发 $n 个账号补签" >> "$LOG"
+      echo "[$now] 本次断网约 $(( dur / 60 )) 分钟，请求补签所有账号" >> "$LOG"
+      : > "$MARKER"
     fi
   fi
 

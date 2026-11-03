@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch for swms catch-up requests (network recovered)
+
+[Path]
+# 探测脚本（普通用户）在网络恢复时创建这个文件，
+# 这里负责以 root 触发一次补签，探测本身就不需要 root 了。
+PathExists=/opt/swms/state/catchup-wanted
+Unit=swms-catchup.service
+
+[Install]
+WantedBy=paths.target
