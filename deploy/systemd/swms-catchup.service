@@ -1,0 +1,7 @@
+[Unit]
+Description=swms catch-up check-ins after a network outage
+
+[Service]
+Type=oneshot
+# 需要 root：要 systemctl start 其它账号的单元
+ExecStart=/opt/swms/catchup.sh
