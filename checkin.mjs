@@ -250,7 +250,7 @@ async function withApi(fn) {
 async function runOnce() {
   return withApi(async (api) => {
     const who = identity || { 学号: username, 姓名: '' };
-    const tasks = await listTasks(api);
+    const tasks = await listTasks(api, { log });
     const due = tasks.filter(isDue);
 
     if (args.list) {

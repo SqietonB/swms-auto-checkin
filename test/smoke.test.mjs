@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { rsaEncrypt, Jar, form } from '../lib/cas.mjs';
 import { FALLBACK_KEY } from '../lib/auth.mjs';
-import { editableFields, isDue } from '../lib/checkin.mjs';
+import { editableFields, isDue, listTasks, taskListBody, TASK_LIST_BODY, TASK_PAGE_SIZE } from '../lib/checkin.mjs';
 import { recognize } from '../lib/ocr.mjs';
 import { decodePNG } from '../lib/png.mjs';
 
@@ -152,4 +152,90 @@ test('editableFields tolerates a malformed form payload', () => {
   assert.deepEqual(editableFields(undefined), {});
   assert.deepEqual(editableFields({}), {});
   assert.deepEqual(editableFields({ groupFields: [{}, { fields: [] }] }), {});
+});
+
+// ------------------------------------------------------------ task-list paging
+//
+// The task list is paginated and ordered oldest-first (by row_id), so the task
+// that is currently open is on the LAST page. Fetching page 1 only — which the
+// original code did — hides it as soon as the history passes TASK_PAGE_SIZE
+// records, and the script reports "nothing due" forever.
+
+/** A stand-in for Api that serves `pages` (an array of item arrays). */
+function fakeApi(pages, { code = 0, calls = [] } = {}) {
+  return {
+    calls,
+    post: async (url, body) => {
+      calls.push({ url, body });
+      if (code !== 0) return { json: { code, msg: 'server said no' }, text: '' };
+      const page = Number(body.currentPage);
+      return {
+        json: { code: 0, data: { items: pages[page - 1] || [], currentPage: page, totalPage: pages.length } },
+        text: '',
+      };
+    },
+  };
+}
+
+const task = (id, { zt = '已截止', dkzt = '0', dkztmc = '未签到' } = {}) => ({
+  id, rwid: `rw-${id}`, dkkssj: '2026-10-22 06:30:00', dkjssj: '2026-10-22 09:00:00', zt, dkzt, dkztmc,
+});
+
+test('taskListBody pages the request and leaves the template on page 1', () => {
+  assert.equal(taskListBody(3).currentPage, '3');
+  assert.equal(taskListBody(3).showCount, String(TASK_PAGE_SIZE));
+  assert.equal(taskListBody(2, 10).showCount, '10');
+  assert.equal(TASK_LIST_BODY.currentPage, '1', 'the exported template must not be mutated');
+  assert.equal(TASK_LIST_BODY.showCount, String(TASK_PAGE_SIZE));
+});
+
+test('listTasks finds the open task when it sits beyond the first page', async () => {
+  const firstPage = Array.from({ length: TASK_PAGE_SIZE }, (_, i) => task(`old-${i}`));
+  const secondPage = [task('recent'), task('open', { zt: '进行中', dkzt: '0', dkztmc: '未签到' })];
+  const api = fakeApi([firstPage, secondPage]);
+
+  const tasks = await listTasks(api, {});
+  assert.equal(tasks.length, TASK_PAGE_SIZE + 2, 'every record must come back');
+  assert.equal(api.calls.length, 3, 'a full page must be followed by another request');
+
+  const due = tasks.filter(isDue);
+  assert.equal(due.length, 1, 'the open task is only reachable by paging');
+  assert.equal(due[0].id, 'open');
+});
+
+test('listTasks stops on the first empty page', async () => {
+  const api = fakeApi([[task('a')], []]);
+  const tasks = await listTasks(api, { showCount: 1 });
+  assert.deepEqual(tasks.map((t) => t.id), ['a']);
+  assert.equal(api.calls.length, 2);
+});
+
+test('listTasks stops when the server repeats a page instead of advancing', async () => {
+  const page = [task('a'), task('b')];
+  const api = fakeApi([page, page]);
+  const tasks = await listTasks(api, { showCount: 2 });
+  assert.deepEqual(tasks.map((t) => t.id), ['a', 'b'], 'the repeat must not duplicate records');
+  assert.equal(api.calls.length, 2, 'the wrap-around must be detected immediately');
+});
+
+test('listTasks ignores records that overlap two pages', async () => {
+  const api = fakeApi([[task('a'), task('b')], [task('b'), task('c')]]);
+  const tasks = await listTasks(api, { showCount: 2 });
+  assert.deepEqual(tasks.map((t) => t.id), ['a', 'b', 'c']);
+});
+
+test('listTasks stops at maxPages and says so', async () => {
+  const pages = Array.from({ length: 10 }, (_, i) => [task(`p${i}`)]);
+  const api = fakeApi(pages);
+  const logs = [];
+  const tasks = await listTasks(api, { showCount: 1, maxPages: 3, log: (m) => logs.push(m) });
+
+  assert.equal(tasks.length, 3);
+  assert.equal(api.calls.length, 3, 'a misbehaving server must not spin forever');
+  assert.ok(logs.some((m) => /页上限/.test(m)), 'truncation must be reported');
+});
+
+test('listTasks surfaces a non-zero server code', async () => {
+  const api = fakeApi([[]], { code: 500 });
+  await assert.rejects(() => listTasks(api), /task list failed/);
 });

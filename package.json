@@ -1,6 +1,6 @@
 {
   "name": "swms-auto-checkin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "学工系统（智慧学工）签到任务自动打卡，支持邮件通知 —— 零依赖 Node.js",
   "type": "module",
   "main": "checkin.mjs",
